@@ -1,0 +1,13 @@
+def mutual_information(x, y, bins=30):
+    joint_hist, _, _ = np.histogram2d(x, y, bins=bins)
+    joint_prob = joint_hist / np.sum(joint_hist)
+
+    px = np.sum(joint_prob, axis=1)
+    py = np.sum(joint_prob, axis=0)
+
+    mi = 0
+    for i in range(len(px)):
+        for j in range(len(py)):
+            if joint_prob[i,j] > 0:
+                mi += joint_prob[i,j] * np.log(joint_prob[i,j]/(px[i]*py[j]))
+    return mi
