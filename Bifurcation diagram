@@ -1,0 +1,16 @@
+lambda_vals = np.linspace(0.5, 2.5, 50)
+activity = []
+
+for lam in lambda_vals:
+    psi = np.random.randn(N)
+    for _ in range(100):
+        left = np.roll(psi,1)
+        right = np.roll(psi,-1)
+        right[-1] = -psi[0]
+        left[0] = -psi[-1]
+        psi = np.tanh(lam*(left+right))
+    activity.append(np.std(psi))
+
+plt.plot(lambda_vals, activity)
+plt.title("Bifurcation-like behavior")
+plt.savefig("bifurcation.png")
