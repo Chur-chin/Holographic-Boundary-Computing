@@ -1,0 +1,13 @@
+MI_map = np.zeros((N, N))
+
+signal = frames[-1]  # 마지막 상태
+
+for i in range(N):
+    for j in range(N):
+        MI_map[i,j] = mutual_information(signal[i:i+5], signal[j:j+5])
+
+plt.imshow(MI_map, cmap='inferno')
+plt.title("Mutual Information Map")
+plt.colorbar()
+plt.savefig("MI_map.png", dpi=300)
+plt.show()
