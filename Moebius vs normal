@@ -1,0 +1,156 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# STEP FUNCTIONS (분리!!)
+# -------------------------
+def step_mobius(psi, lam):
+    left = np.roll(psi, 1)
+    right = np.roll(psi, -1)
+
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    forcing = 0.5*np.sin(np.linspace(0, 5*np.pi, len(psi)))
+    noise = 0.02*np.random.randn(len(psi))
+
+    return np.tanh(lam*(left + right) + forcing + noise)
+
+
+def step_normal(psi, lam):
+    left = np.roll(psi, 1)
+    right = np.roll(psi, -1)
+    return np.tanh(lam*(left + right))
+
+
+# -------------------------
+# LYAPUNOV (안정 버전)
+# -------------------------
+def lyapunov(step_func, N=200, lam=1.2, T=150):
+    psi = np.random.randn(N)
+    psi2 = psi + 1e-8*np.random.randn(N)
+
+    d0 = np.linalg.norm(psi - psi2)
+    lyap = 0
+
+    for _ in range(T):
+        psi = step_func(psi, lam)
+        psi2 = step_func(psi2, lam)
+
+        d = np.linalg.norm(psi - psi2)
+        if d == 0:
+            continue
+
+        lyap += np.log(d/d0)
+
+        # renormalize
+        psi2 = psi + (psi2 - psi)*(1e-8/d)
+
+    return lyap / T
+
+
+# -------------------------
+# FIGURE 1: Lyapunov 비교
+# -------------------------
+lam_vals = np.linspace(0.5, 2.0, 20)
+
+lyap_mob = []
+lyap_norm = []
+
+for lam in lam_vals:
+    lyap_mob.append(lyapunov(step_mobius, lam=lam))
+    lyap_norm.append(lyapunov(step_normal, lam=lam))
+
+plt.figure()
+plt.plot(lam_vals, lyap_mob, label="Mobius")
+plt.plot(lam_vals, lyap_norm, label="Periodic")
+plt.axhline(0, linestyle='--')
+plt.legend()
+plt.xlabel("Lambda")
+plt.ylabel("Lyapunov Exponent")
+plt.title("Figure 1: Lyapunov Spectrum")
+plt.savefig("Fig1_lyapunov.png", dpi=300)
+plt.show()
+
+
+# -------------------------
+# FIGURE 2: Bifurcation
+# -------------------------
+def bifurcation(step_func, N=200):
+    lam_vals = np.linspace(0.5, 2.5, 60)
+    X = []
+    Y = []
+
+    for lam in lam_vals:
+        psi = np.random.randn(N)
+
+        for _ in range(100):
+            psi = step_func(psi, lam)
+
+        for val in psi[:20]:
+            X.append(lam)
+            Y.append(val)
+
+    return X, Y
+
+
+X, Y = bifurcation(step_mobius)
+
+plt.figure(figsize=(6,4))
+plt.scatter(X, Y, s=2)
+plt.xlabel("Lambda")
+plt.ylabel("State")
+plt.title("Figure 2: Bifurcation (Mobius)")
+plt.savefig("Fig2_bifurcation.png", dpi=300)
+plt.show()
+
+
+# -------------------------
+# FIGURE 3: Scaling
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+
+Ns = [100, 200, 400]
+ent_vals = []
+
+for N in Ns:
+    psi = np.random.randn(N)
+    e = []
+    for _ in range(100):
+        psi = step_mobius(psi, 1.2)
+        e.append(entropy(psi))
+    ent_vals.append(np.mean(e))
+
+plt.figure()
+plt.plot(Ns, ent_vals, '-o')
+plt.xlabel("System Size")
+plt.ylabel("Entropy")
+plt.title("Figure 3: Scaling")
+plt.savefig("Fig3_scaling.png", dpi=300)
+plt.show()
+
+
+# -------------------------
+# FIGURE 4: Dynamics
+# -------------------------
+N = 200
+psi = np.random.randn(N)
+
+history = []
+
+for _ in range(120):
+    psi = step_mobius(psi, 1.2)
+    history.append(psi.copy())
+
+plt.figure(figsize=(6,4))
+plt.imshow(history, aspect='auto')
+plt.xlabel("Position")
+plt.ylabel("Time")
+plt.title("Figure 4: Spatiotemporal Dynamics")
+plt.colorbar()
+plt.savefig("Fig4_dynamics.png", dpi=300)
+plt.show()
