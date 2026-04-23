@@ -1,0 +1,105 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# -------------------------
+# PARAMETERS
+# -------------------------
+N = 240
+T = 140
+
+# 2.5 turn serpentine
+t = np.linspace(0, 5*np.pi, N)
+x = t
+y = np.sin(t)
+
+# 초기 상태 (부호가 섞인 파형)
+psi = np.sin(0.7*t) + 0.2*np.random.randn(N)
+
+# 역할(옵션): 0 neuron, 1 glia, 2 astro, 3 oligo
+roles = np.random.choice([0,1,2,3], size=N, p=[0.4,0.3,0.2,0.1])
+
+# 게인
+lam = np.array([1.2 if r==0 else 0.8 if r==1 else 1.5 if r==2 else 1.0 for r in roles])
+
+# 곡률 (astro 가중)
+curv = np.abs(np.gradient(np.gradient(y)))
+
+# -------------------------
+# HELPER: domain wall detect
+# -------------------------
+def detect_domain_walls(signal, threshold=1.0):
+    """
+    sign flip + 큰 기울기 동시 만족 지점을 도메인으로 표시
+    """
+    sgn = np.sign(signal)
+    # 이웃간 부호 변화
+    flip = (sgn[:-1] * sgn[1:] < 0)
+    # 기울기 크기
+    grad = np.abs(np.diff(signal))
+    mask = flip & (grad > threshold)
+    idx = np.where(mask)[0] + 1
+    return idx
+
+# -------------------------
+# STEP with Möbius BC
+# -------------------------
+def step(psi, lam):
+    # 이웃 결합 (주기 경계 + Möbius 반전)
+    left = np.roll(psi, 1)
+    right = np.roll(psi, -1)
+
+    # Möbius 조건: 한 바퀴 연결에서 부호 반전
+    # 오른쪽 끝이 0으로 연결될 때 - 부호
+    right[-1] = -psi[0]
+    # 왼쪽 끝이 N-1로 연결될 때 - 부호
+    left[0] = -psi[-1]
+
+    # astro: 곡률 높은 곳에서 결합 강화
+    lam_eff = lam.copy()
+    lam_eff[roles==2] *= (1 + 2*curv[roles==2])
+
+    # oligo: 전달 강화(손실↓)
+    boost = np.ones(N)
+    boost[roles==3] = 1.6
+
+    new = np.tanh(0.5*psi + 0.25*(left + right)*lam_eff*boost)
+    return new
+
+# -------------------------
+# SIMULATION
+# -------------------------
+frames = []
+dw_history = []
+
+for _ in range(T):
+    psi = step(psi, lam)
+    dw = detect_domain_walls(psi, threshold=0.6)
+    frames.append(psi.copy())
+    dw_history.append(dw)
+
+# -------------------------
+# ANIMATION
+# -------------------------
+fig, ax = plt.subplots()
+
+def update(i):
+    ax.clear()
+    sig = frames[i]
+    dw = dw_history[i]
+
+    # 값에 따라 색 (양수/음수)
+    colors = np.where(sig>=0, "crimson", "royalblue")
+    ax.scatter(x, y, c=colors, s=18)
+
+    # domain wall 표시
+    if len(dw) > 0:
+        ax.scatter(x[dw], y[dw], c="gold", s=60, edgecolors="black", label="domain wall")
+
+    ax.set_title(f"t={i}  |  Möbius BC: ψ(L)=-ψ(0)")
+    ax.set_xlim(x.min(), x.max())
+    ax.set_ylim(y.min()-1.2, y.max()+1.2)
+    ax.legend(loc="upper right")
+
+ani = FuncAnimation(fig, update, frames=T)
+ani.save("mobius_domain_walls.gif", fps=10)
