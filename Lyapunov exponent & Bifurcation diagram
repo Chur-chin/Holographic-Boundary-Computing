@@ -1,0 +1,144 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# CORE DYNAMICS (Möbius)
+# -------------------------
+def step(psi, lam, mobius=True):
+    left = np.roll(psi, 1)
+    right = np.roll(psi, -1)
+
+    if mobius:
+        right[-1] = -psi[0]
+        left[0] = -psi[-1]
+
+    forcing = 0.5*np.sin(np.linspace(0, 5*np.pi, len(psi)))
+    noise = 0.02*np.random.randn(len(psi))
+
+    return np.tanh(lam*(left + right) + forcing + noise)
+
+# -------------------------
+# 1️⃣ LYAPUNOV EXPONENT
+# -------------------------
+def lyapunov(N=200, lam=1.2, T=150):
+    psi1 = np.random.randn(N)
+    psi2 = psi1 + 1e-8*np.random.randn(N)
+
+    d0 = np.linalg.norm(psi1 - psi2)
+    logs = []
+
+    for _ in range(T):
+        psi1 = step(psi1, lam)
+        psi2 = step(psi2, lam)
+
+        d = np.linalg.norm(psi1 - psi2)
+        if d > 0:
+            logs.append(np.log(d/d0))
+            psi2 = psi1 + (psi2-psi1)*(1e-8/d)  # renormalize
+
+    return np.mean(logs)
+
+# -------------------------
+# 2️⃣ BIFURCATION
+# -------------------------
+def bifurcation(N=200):
+    lam_vals = np.linspace(0.5, 2.5, 80)
+    results = []
+
+    for lam in lam_vals:
+        psi = np.random.randn(N)
+
+        for _ in range(100):  # transient 제거
+            psi = step(psi, lam)
+
+        # 마지막 상태 일부 샘플
+        results.append(psi[:20])
+
+    return lam_vals, np.array(results)
+
+# -------------------------
+# 3️⃣ SCALING (Entropy)
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+def scaling_test():
+    Ns = [100, 200, 400]
+    ent = []
+
+    for N in Ns:
+        psi = np.random.randn(N)
+        series = []
+
+        for _ in range(120):
+            psi = step(psi, 1.2)
+            series.append(entropy(psi))
+
+        ent.append(np.mean(series))
+
+    return Ns, ent
+
+# -------------------------
+# FIGURE 1: Lyapunov vs lambda
+# -------------------------
+lam_scan = np.linspace(0.5, 2.0, 25)
+lyap_vals = [lyapunov(200, lam) for lam in lam_scan]
+
+plt.figure()
+plt.plot(lam_scan, lyap_vals, '-o')
+plt.axhline(0, linestyle='--')
+plt.xlabel("Lambda")
+plt.ylabel("Lyapunov Exponent")
+plt.title("Figure 1: Lyapunov Spectrum")
+plt.savefig("Fig1_lyapunov.png", dpi=300)
+plt.show()
+
+# -------------------------
+# FIGURE 2: Bifurcation
+# -------------------------
+lam_vals, bif = bifurcation(200)
+
+plt.figure(figsize=(6,4))
+for i in range(bif.shape[1]):
+    plt.scatter(lam_vals, bif[:,i], s=2, color='black')
+
+plt.xlabel("Lambda")
+plt.ylabel("State")
+plt.title("Figure 2: Bifurcation Diagram")
+plt.savefig("Fig2_bifurcation.png", dpi=300)
+plt.show()
+
+# -------------------------
+# FIGURE 3: Scaling
+# -------------------------
+Ns, ent = scaling_test()
+
+plt.figure()
+plt.plot(Ns, ent, '-o')
+plt.xlabel("System Size (N)")
+plt.ylabel("Mean Entropy")
+plt.title("Figure 3: Scaling Behavior")
+plt.savefig("Fig3_scaling.png", dpi=300)
+plt.show()
+
+# -------------------------
+# FIGURE 4: Sample dynamics
+# -------------------------
+N = 200
+psi = np.random.randn(N)
+history = []
+
+for _ in range(120):
+    psi = step(psi, 1.2)
+    history.append(psi.copy())
+
+plt.figure(figsize=(6,4))
+plt.imshow(history, aspect='auto')
+plt.xlabel("Position")
+plt.ylabel("Time")
+plt.title("Figure 4: Spatiotemporal Dynamics")
+plt.colorbar()
+plt.savefig("Fig4_dynamics.png", dpi=300)
+plt.show()
