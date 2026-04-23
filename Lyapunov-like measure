@@ -1,0 +1,16 @@
+def divergence(a, b):
+    return np.mean(np.abs(a-b))
+
+psi1 = np.random.randn(N)
+psi2 = psi1 + 1e-5*np.random.randn(N)
+
+dist = []
+
+for _ in range(100):
+    psi1 = step(psi1)
+    psi2 = step(psi2)
+    dist.append(divergence(psi1, psi2))
+
+plt.plot(dist)
+plt.title("Lyapunov-like divergence")
+plt.savefig("lyapunov.png")
