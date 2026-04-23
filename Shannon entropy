@@ -1,0 +1,4 @@
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=50, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist * np.log(hist))
