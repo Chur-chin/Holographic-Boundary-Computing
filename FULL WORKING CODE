@@ -1,0 +1,162 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# PARAMETERS
+# -------------------------
+N = 240
+T = 120
+
+# serpentine
+t = np.linspace(0, 5*np.pi, N)
+x = t
+y = np.sin(t)
+
+# -------------------------
+# INITIAL STATE (중요: sign 섞기)
+# -------------------------
+psi = np.sin(0.7*t) + 0.3*np.random.randn(N)
+
+# -------------------------
+# DOMAIN WALL DETECTION (안정 버전)
+# -------------------------
+def detect_domain_walls(signal):
+    sgn = np.sign(signal)
+    flip = (sgn[:-1] * sgn[1:] < 0)
+    return np.where(flip)[0] + 1
+
+# -------------------------
+# STEP (Möbius + perturbation)
+# -------------------------
+def step(psi):
+    left = np.roll(psi, 1)
+    right = np.roll(psi, -1)
+
+    # Möbius boundary
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    # forcing + noise (핵심)
+    forcing = 0.4 * np.sin(np.linspace(0, 5*np.pi, N))
+    noise = 0.15 * np.random.randn(N)
+
+    new = np.tanh(0.6*(left + right) + forcing + noise)
+    return new
+
+# -------------------------
+# SIMULATION
+# -------------------------
+frames = []
+dw_history = []
+
+for _ in range(T):
+    psi = step(psi)
+    dw = detect_domain_walls(psi)
+    
+    frames.append(psi.copy())
+    dw_history.append(dw)
+
+# -------------------------
+# 1️⃣ DOMAIN WALL TRAJECTORY
+# -------------------------
+plt.figure(figsize=(8,4))
+
+for t in range(T):
+    if len(dw_history[t]) > 0:
+        plt.scatter(dw_history[t], [t]*len(dw_history[t)], c='red', s=6)
+
+plt.xlabel("Position")
+plt.ylabel("Time")
+plt.title("Domain Wall Trajectory")
+plt.gca().invert_yaxis()
+plt.savefig("DW_trajectory.png", dpi=300)
+plt.show()
+
+# -------------------------
+# 2️⃣ ENTROPY
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist * np.log(hist))
+
+ent = [entropy(f) for f in frames]
+
+plt.figure()
+plt.plot(ent)
+plt.title("Entropy over Time")
+plt.xlabel("Time")
+plt.ylabel("Entropy")
+plt.savefig("entropy.png", dpi=300)
+plt.show()
+
+# -------------------------
+# 3️⃣ MUTUAL INFORMATION MAP (간단 버전)
+# -------------------------
+def mutual_information(x, y, bins=20):
+    joint, _, _ = np.histogram2d(x, y, bins=bins)
+    pxy = joint / np.sum(joint)
+
+    px = np.sum(pxy, axis=1)
+    py = np.sum(pxy, axis=0)
+
+    mi = 0
+    for i in range(len(px)):
+        for j in range(len(py)):
+            if pxy[i,j] > 0:
+                mi += pxy[i,j]*np.log(pxy[i,j]/(px[i]*py[j]))
+    return mi
+
+signal = frames[-1]
+MI = np.zeros((N//4, N//4))
+
+for i in range(0, N, 4):
+    for j in range(0, N, 4):
+        MI[i//4, j//4] = mutual_information(
+            signal[i:i+4],
+            signal[j:j+4]
+        )
+
+plt.imshow(MI, cmap='inferno')
+plt.title("Mutual Information Map")
+plt.colorbar()
+plt.savefig("MI_map.png", dpi=300)
+plt.show()
+
+# -------------------------
+# 4️⃣ PHASE DIAGRAM (Möbius vs 일반)
+# -------------------------
+lambda_vals = np.linspace(0.5, 2.5, 20)
+
+phase_mobius = []
+phase_normal = []
+
+for lam in lambda_vals:
+    
+    psi1 = np.random.randn(N)
+    psi2 = psi1.copy()
+    
+    for _ in range(80):
+        # normal
+        l = np.roll(psi1,1)
+        r = np.roll(psi1,-1)
+        psi1 = np.tanh(lam*(l+r))
+        
+        # mobius
+        l2 = np.roll(psi2,1)
+        r2 = np.roll(psi2,-1)
+        r2[-1] = -psi2[0]
+        l2[0] = -psi2[-1]
+        psi2 = np.tanh(lam*(l2+r2))
+    
+    phase_normal.append(np.std(psi1))
+    phase_mobius.append(np.std(psi2))
+
+plt.plot(lambda_vals, phase_normal, label="Normal")
+plt.plot(lambda_vals, phase_mobius, label="Mobius")
+plt.legend()
+plt.xlabel("Lambda")
+plt.ylabel("Activity")
+plt.title("Phase Diagram")
+plt.savefig("phase.png", dpi=300)
+plt.show()
