@@ -1,0 +1,141 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# PARAMETERS
+# -------------------------
+N = 240
+T = 120
+
+t = np.linspace(0, 5*np.pi, N)
+
+# -------------------------
+# INITIAL STATE
+# -------------------------
+psi = np.sin(0.7*t) + 0.3*np.random.randn(N)
+
+# -------------------------
+# DOMAIN WALL DETECTION
+# -------------------------
+def detect_domain_walls(signal):
+    sgn = np.sign(signal)
+    flip = (sgn[:-1] * sgn[1:] < 0)
+    return np.where(flip)[0] + 1
+
+# -------------------------
+# STEP (Möbius + 안정화)
+# -------------------------
+def step(psi):
+    left = np.roll(psi, 1)
+    right = np.roll(psi, -1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    forcing = 0.6*np.sin(np.linspace(0, 5*np.pi, N))
+    noise = 0.05*np.random.randn(N)
+
+    return np.tanh(0.8*(left + right) + forcing + noise)
+
+# -------------------------
+# SIMULATION
+# -------------------------
+frames = []
+dw_binary = []
+
+for _ in range(T):
+    psi = step(psi)
+    dw = detect_domain_walls(psi)
+    
+    frames.append(psi.copy())
+    
+    binary = np.zeros(N)
+    binary[dw] = 1
+    dw_binary.append(binary)
+
+frames = np.array(frames)
+dw_binary = np.array(dw_binary)
+
+# -------------------------
+# FIGURE 1: Activity
+# -------------------------
+plt.imshow(frames, aspect='auto')
+plt.title("Figure 1: Activity Evolution")
+plt.xlabel("Position")
+plt.ylabel("Time")
+plt.colorbar()
+plt.savefig("Fig1_activity.png", dpi=300)
+plt.show()
+
+# -------------------------
+# FIGURE 2: Domain Wall (Binary)
+# -------------------------
+plt.imshow(dw_binary, aspect='auto', cmap='gray')
+plt.title("Figure 2: Domain Wall Bit Field")
+plt.xlabel("Position")
+plt.ylabel("Time")
+plt.savefig("Fig2_binary.png", dpi=300)
+plt.show()
+
+# -------------------------
+# ENTROPY (Information Capacity)
+# -------------------------
+def entropy(p):
+    p = p[p > 0]
+    return -np.sum(p*np.log2(p))
+
+entropies = []
+
+for t in range(T):
+    p = np.mean(dw_binary[t])
+    if p == 0 or p == 1:
+        entropies.append(0)
+    else:
+        entropies.append(entropy(np.array([p,1-p])))
+
+capacity = np.mean(entropies)
+
+plt.plot(entropies)
+plt.title(f"Figure 3: Entropy (Capacity={capacity:.3f})")
+plt.xlabel("Time")
+plt.ylabel("Entropy")
+plt.savefig("Fig3_entropy.png", dpi=300)
+plt.show()
+
+# -------------------------
+# MUTUAL INFORMATION
+# -------------------------
+def mutual_info(x, y):
+    joint = np.histogram2d(x, y, bins=2)[0]
+    pxy = joint / np.sum(joint)
+    px = np.sum(pxy, axis=1)
+    py = np.sum(pxy, axis=0)
+
+    mi = 0
+    for i in range(2):
+        for j in range(2):
+            if pxy[i,j] > 0:
+                mi += pxy[i,j]*np.log2(pxy[i,j]/(px[i]*py[j]))
+    return mi
+
+MI_map = np.zeros((N//6, N//6))
+
+for i in range(0, N, 6):
+    for j in range(0, N, 6):
+        MI_map[i//6, j//6] = mutual_info(
+            dw_binary[-1, i:i+6],
+            dw_binary[-1, j:j+6]
+        )
+
+plt.imshow(MI_map, cmap='inferno')
+plt.title("Figure 4: Mutual Information Map")
+plt.colorbar()
+plt.savefig("Fig4_MI.png", dpi=300)
+plt.show()
+
+# -------------------------
+# PRINT RESULT
+# -------------------------
+print("=== RESULTS ===")
+print(f"Information Capacity (mean entropy): {capacity:.4f}")
