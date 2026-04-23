@@ -1,0 +1,30 @@
+lambda_vals = np.linspace(0.5, 3.0, 20)
+mobius_flag = [0, 1]
+
+phase = np.zeros((len(lambda_vals), 2))
+
+for i, lam in enumerate(lambda_vals):
+    for j, mob in enumerate(mobius_flag):
+        
+        psi = np.random.randn(N)
+        
+        for _ in range(80):
+            left = np.roll(psi, 1)
+            right = np.roll(psi, -1)
+            
+            if mob == 1:
+                right[-1] = -psi[0]
+                left[0] = -psi[-1]
+            
+            psi = np.tanh(lam*(left+right))
+        
+        phase[i,j] = np.std(psi)
+
+plt.plot(lambda_vals, phase[:,0], label="Periodic")
+plt.plot(lambda_vals, phase[:,1], label="Mobius")
+plt.xlabel("Lambda")
+plt.ylabel("Activity")
+plt.legend()
+plt.title("Phase with Möbius Boundary")
+plt.savefig("phase_mobius.png", dpi=300)
+plt.show()
