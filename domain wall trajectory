@@ -1,0 +1,21 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# dw_history: 이전 코드에서 저장된 domain wall index 리스트
+
+T = len(dw_history)
+
+traj = np.full((T, N), np.nan)
+
+for t in range(T):
+    for idx in dw_history[t]:
+        traj[t, idx] = 1  # wall 존재 표시
+
+plt.figure(figsize=(8,4))
+plt.imshow(traj, aspect='auto', cmap='hot', origin='lower')
+plt.xlabel("Position (s)")
+plt.ylabel("Time")
+plt.title("Domain Wall Trajectory")
+plt.colorbar(label="Wall Presence")
+plt.savefig("DW_trajectory.png", dpi=300)
+plt.show()
