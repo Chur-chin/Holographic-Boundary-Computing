@@ -1,0 +1,59 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+N = 200
+T = 150
+
+def step(psi, lam, t, heartbeat=False):
+    left = np.roll(psi,1)
+    right = np.roll(psi,-1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    if heartbeat:
+        lam = lam + 0.4*np.sin(0.05*t)
+
+    return np.tanh(lam*(left+right))
+
+
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist>0]
+    return -np.sum(hist*np.log(hist))
+
+
+lam_vals = np.linspace(0.5, 2.0, 30)
+
+ent_on = []
+ent_off = []
+
+for lam in lam_vals:
+
+    # OFF
+    psi = np.random.randn(N)
+    e = []
+    for t in range(T):
+        psi = step(psi, lam, t, heartbeat=False)
+        e.append(entropy(psi))
+    ent_off.append(np.mean(e))
+
+    # ON
+    psi = np.random.randn(N)
+    e = []
+    for t in range(T):
+        psi = step(psi, lam, t, heartbeat=True)
+        e.append(entropy(psi))
+    ent_on.append(np.mean(e))
+
+
+plt.figure()
+plt.plot(lam_vals, ent_off, label="No Heartbeat")
+plt.plot(lam_vals, ent_on, label="Heartbeat ON")
+plt.legend()
+plt.xlabel("Lambda")
+plt.ylabel("Mean Entropy")
+plt.title("Figure 5: Heartbeat-driven Phase Diagram")
+plt.savefig("Fig5_heartbeat_phase.png", dpi=300)
+plt.show()
