@@ -1,0 +1,15 @@
+psi = np.random.randn(N)
+history = []
+
+for t in range(150):
+    psi = step(psi, 1.2, t, heartbeat=True)
+    history.append(psi.copy())
+
+plt.figure(figsize=(6,4))
+plt.imshow(history, aspect='auto')
+plt.xlabel("Position")
+plt.ylabel("Time")
+plt.title("Figure 5: Driven Spatiotemporal Dynamics")
+plt.colorbar()
+plt.savefig("Fig5_driven.png", dpi=300)
+plt.show()
