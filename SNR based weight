@@ -1,0 +1,2 @@
+weights = ent[idx] / (noise_level + 1e-5)
+weights /= np.sum(weights)
