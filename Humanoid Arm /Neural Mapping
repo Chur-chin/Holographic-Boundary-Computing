@@ -1,0 +1,110 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ----------------------------
+# 1. Boundary output → joint mapping
+# ----------------------------
+
+def boundary_to_joint(I):
+    """
+    boundary intensity → joint angle 변환
+    (neural activation → motor output)
+    """
+    # normalize
+    I = np.clip(I, 0, 4)
+    return (I / 4.0) * 180  # degree
+
+# ----------------------------
+# 2. Generate synthetic boundary signals
+# ----------------------------
+
+x = np.linspace(0, 10, 100)
+
+# 3개의 channel (shoulder, elbow, wrist)
+I_shoulder = 2 + np.sin(x)
+I_elbow    = 2 + np.sin(x + np.pi/4)
+I_wrist    = 2 + np.sin(x + np.pi/2)
+
+# noise 추가 (실험 환경)
+noise = 0.2 * np.random.randn(len(x))
+I_shoulder += noise
+I_elbow    += noise
+I_wrist    += noise
+
+# ----------------------------
+# 3. Joint angles
+# ----------------------------
+
+theta_sh = boundary_to_joint(I_shoulder)
+theta_el = boundary_to_joint(I_elbow)
+theta_wr = boundary_to_joint(I_wrist)
+
+# ----------------------------
+# 4. Plot 1: Neural mapping (signal level)
+# ----------------------------
+
+plt.figure(figsize=(6,4))
+
+plt.plot(x, I_shoulder, label="Shoulder (Boundary)")
+plt.plot(x, I_elbow, label="Elbow (Boundary)")
+plt.plot(x, I_wrist, label="Wrist (Boundary)")
+
+plt.xlabel("Propagation / Time")
+plt.ylabel("Boundary Intensity")
+plt.title("Boundary Output → Neural Activation Mapping")
+
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 5. Plot 2: Joint angle control
+# ----------------------------
+
+plt.figure(figsize=(6,4))
+
+plt.plot(x, theta_sh, label="Shoulder Angle")
+plt.plot(x, theta_el, label="Elbow Angle")
+plt.plot(x, theta_wr, label="Wrist Angle")
+
+plt.xlabel("Propagation / Time")
+plt.ylabel("Joint Angle (degree)")
+plt.title("Wave Boundary → Humanoid Arm Control")
+
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 6. Simple arm visualization (snapshot)
+# ----------------------------
+
+def plot_arm(theta1, theta2, theta3):
+    # 길이
+    L1, L2, L3 = 1, 1, 0.7
+    
+    # 각도 rad 변환
+    t1 = np.deg2rad(theta1)
+    t2 = np.deg2rad(theta2)
+    t3 = np.deg2rad(theta3)
+    
+    # forward kinematics
+    x1, y1 = L1*np.cos(t1), L1*np.sin(t1)
+    x2, y2 = x1 + L2*np.cos(t1+t2), y1 + L2*np.sin(t1+t2)
+    x3, y3 = x2 + L3*np.cos(t1+t2+t3), y2 + L3*np.sin(t1+t2+t3)
+    
+    plt.plot([0,x1,x2,x3], [0,y1,y2,y3], marker='o')
+    plt.xlim(-3,3)
+    plt.ylim(-3,3)
+    plt.gca().set_aspect('equal')
+
+# snapshot index
+idx = 50
+
+plt.figure(figsize=(4,4))
+plot_arm(theta_sh[idx], theta_el[idx], theta_wr[idx])
+plt.title("Humanoid Arm Snapshot (Wave-Controlled)")
+plt.grid(True)
+plt.show()
