@@ -1,0 +1,109 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
+# ----------------------------
+# 1. Wave interference model
+# ----------------------------
+
+def wave_output(phi1, phi2, wavelength, L=1.0):
+    k = 2 * np.pi / wavelength
+    
+    # path difference (serpentine / Möbius 효과)
+    delta_phi = k * L + (phi1 - phi2)
+    
+    # interference intensity
+    I = 2 * (1 + np.cos(delta_phi))
+    
+    return I
+
+# ----------------------------
+# 2. XOR accuracy evaluation
+# ----------------------------
+
+def compute_accuracy(wavelength, threshold=2.0):
+    # binary phase encoding
+    phases = {
+        0: 0,
+        1: np.pi
+    }
+    
+    correct = 0
+    total = 4
+    
+    # XOR truth table
+    truth = {
+        (0,0): 0,
+        (1,1): 0,
+        (0,1): 1,
+        (1,0): 1
+    }
+    
+    for (a, b), target in truth.items():
+        phi1 = phases[a]
+        phi2 = phases[b]
+        
+        I = wave_output(phi1, phi2, wavelength)
+        
+        # classification rule
+        pred = 1 if I < threshold else 0
+        
+        if pred == target:
+            correct += 1
+    
+    return correct / total
+
+# ----------------------------
+# 3. Sweep wavelengths
+# ----------------------------
+
+wavelengths = np.linspace(0.5, 5.0, 100)
+accuracies = np.array([compute_accuracy(wl) for wl in wavelengths])
+
+# ----------------------------
+# 4. Fit function (energy-like decay)
+# ----------------------------
+
+def fit_func(x, A, alpha, beta):
+    return A * np.exp(-alpha * x) + beta
+
+params, _ = curve_fit(fit_func, wavelengths, accuracies, p0=[1, 0.5, 0.2])
+
+# ----------------------------
+# 5. Plot (논문 Figure 스타일)
+# ----------------------------
+
+plt.figure(figsize=(6,5))
+
+# scatter
+plt.scatter(wavelengths, accuracies)
+
+# fitted curve
+x_fit = np.linspace(0.5, 5.0, 200)
+y_fit = fit_func(x_fit, *params)
+plt.plot(x_fit, y_fit)
+
+plt.xlabel("Wavelength (λ)")
+plt.ylabel("XOR Accuracy")
+plt.title("Wavelength vs XOR Accuracy (Wave Interference Model)")
+
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 6. Print critical wavelength
+# ----------------------------
+
+# accuracy 0.9 이상 유지되는 최대 wavelength
+valid = wavelengths[accuracies > 0.9]
+if len(valid) > 0:
+    print("Critical wavelength (Nc):", valid[-1])
+else:
+    print("No stable high-accuracy region found")
+
+# fitting parameters
+print("Fit parameters:")
+print("A =", params[0])
+print("alpha =", params[1])
+print("beta =", params[2])
