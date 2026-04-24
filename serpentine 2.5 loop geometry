@@ -1,0 +1,155 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ----------------------------
+# 1. Serpentine geometry (2.5 loops)
+# ----------------------------
+
+def serpentine_path(num_points=500, loops=2.5, Lx=10):
+    t = np.linspace(0, loops * 2*np.pi, num_points)
+    
+    x = Lx * t / (loops * 2*np.pi)
+    y = np.sin(t)  # serpentine oscillation
+    
+    return x, y
+
+# path length 계산
+def path_length(x, y):
+    dx = np.diff(x)
+    dy = np.diff(y)
+    return np.sum(np.sqrt(dx**2 + dy**2))
+
+# ----------------------------
+# 2. Polarization-dependent wavevector
+# ----------------------------
+
+def k_eff(wavelength, theta):
+    k0 = 2*np.pi / wavelength
+    # anisotropic effect (hBN-like)
+    return k0 * (1 + 0.3*np.cos(2*theta))
+
+# ----------------------------
+# 3. Wave propagation with Möbius-like phase inversion
+# ----------------------------
+
+def wave_interference(phi1, phi2, wavelength, theta, L):
+    
+    k = k_eff(wavelength, theta)
+    
+    # phase accumulation
+    phase1 = k * L + phi1
+    phase2 = k * L + phi2 + np.pi  # Möbius phase inversion
+    
+    psi1 = np.exp(1j * phase1)
+    psi2 = np.exp(1j * phase2)
+    
+    psi = psi1 + psi2
+    
+    return np.abs(psi)**2
+
+# ----------------------------
+# 4. Experimental-like noise
+# ----------------------------
+
+def add_noise(I, phase_noise=0.1, amp_noise=0.05):
+    noisy = I.copy()
+    
+    # multiplicative noise
+    noisy *= (1 + amp_noise * np.random.randn())
+    
+    # additive noise
+    noisy += phase_noise * np.random.randn()
+    
+    return max(noisy, 0)
+
+# ----------------------------
+# 5. XOR accuracy
+# ----------------------------
+
+def compute_accuracy(wavelength, theta, L, threshold=1.5):
+    
+    phases = {0: 0, 1: np.pi}
+    
+    truth = {
+        (0,0): 0,
+        (1,1): 0,
+        (0,1): 1,
+        (1,0): 1
+    }
+    
+    correct = 0
+    
+    for (a,b), target in truth.items():
+        I = wave_interference(
+            phases[a],
+            phases[b],
+            wavelength,
+            theta,
+            L
+        )
+        
+        I = add_noise(I)
+        
+        pred = 1 if I < threshold else 0
+        
+        if pred == target:
+            correct += 1
+    
+    return correct / 4
+
+# ----------------------------
+# 6. Generate geometry
+# ----------------------------
+
+x, y = serpentine_path()
+L = path_length(x, y)
+
+print("Effective path length:", L)
+
+# ----------------------------
+# 7. 2D sweep (wavelength vs polarization)
+# ----------------------------
+
+wavelengths = np.linspace(0.5, 5.0, 80)
+thetas = np.linspace(0, np.pi, 80)
+
+accuracy_map = np.zeros((len(thetas), len(wavelengths)))
+
+for i, theta in enumerate(thetas):
+    for j, wl in enumerate(wavelengths):
+        accuracy_map[i, j] = compute_accuracy(wl, theta, L)
+
+# ----------------------------
+# 8. Plot heatmap
+# ----------------------------
+
+plt.figure(figsize=(7,5))
+
+plt.imshow(
+    accuracy_map,
+    extent=[wavelengths.min(), wavelengths.max(), 0, np.pi],
+    aspect='auto',
+    origin='lower'
+)
+
+plt.colorbar(label="XOR Accuracy")
+
+plt.xlabel("Wavelength (λ)")
+plt.ylabel("Polarization Angle (θ)")
+plt.title("2D Interference Map: λ vs θ (Serpentine 2.5 Loop + Möbius Phase)")
+
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 9. Optional: Serpentine geometry plot (Figure inset용)
+# ----------------------------
+
+plt.figure(figsize=(5,3))
+plt.plot(x, y)
+plt.title("Serpentine Geometry (2.5 loops)")
+plt.xlabel("x")
+plt.ylabel("y")
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
