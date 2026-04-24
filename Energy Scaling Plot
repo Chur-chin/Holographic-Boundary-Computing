@@ -1,0 +1,26 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# input size (문제 크기)
+N = np.linspace(1, 100, 100)
+
+# conventional (digital)
+E_digital = N**2
+
+# wave system (coherence 기반)
+E_wave = np.log(N + 1)
+
+# ---- plot ----
+plt.figure(figsize=(6,5))
+
+plt.plot(N, E_digital, label="Digital (O(N^2))")
+plt.plot(N, E_wave, label="Wave (log scaling)")
+
+plt.xlabel("Problem Size (N)")
+plt.ylabel("Energy Consumption (arb. units)")
+plt.title("Energy Scaling: Digital vs Wave Computing")
+
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
