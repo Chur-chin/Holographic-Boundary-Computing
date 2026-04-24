@@ -1,0 +1,43 @@
+A_vals = np.linspace(0.1, 0.6, 6)
+freq_vals = np.linspace(0.02, 0.1, 6)
+
+best_score = 1e9
+best_params = None
+
+for A in A_vals:
+    for freq in freq_vals:
+
+        def step_opt(psi, lam, t, noise):
+            left = np.roll(psi,1)
+            right = np.roll(psi,-1)
+
+            right[-1] = -psi[0]
+            left[0] = -psi[-1]
+
+            lam_eff = lam + A*np.sin(freq*t)
+            return np.tanh(lam_eff*(left+right) + noise*np.random.randn(len(psi)))
+
+        # run simulation
+        psi = np.random.randn(200)
+        history = []
+
+        for t in range(120):
+            psi = step_opt(psi, 1.2, t, 0.2)
+            history.append(psi.copy())
+
+        # window
+        idx, ent = detect_windows(history)
+        windows = extract_windows(history, idx)
+        recon = stitch_weighted(windows, ent, idx)
+
+        if recon is None:
+            continue
+
+        true = np.mean(history, axis=0)
+        err = np.linalg.norm(true - recon)
+
+        if err < best_score:
+            best_score = err
+            best_params = (A, freq)
+
+print("Best:", best_params, "Error:", best_score)
