@@ -1,0 +1,110 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# STEP (heartbeat 포함)
+# -------------------------
+def step(psi, lam, t, noise_level):
+    left = np.roll(psi,1)
+    right = np.roll(psi,-1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    heartbeat = 0.4*np.sin(0.05*t)
+    lam_eff = lam + heartbeat
+
+    noise = noise_level * np.random.randn(len(psi))
+
+    return np.tanh(lam_eff*(left+right) + noise)
+
+# -------------------------
+# entropy
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+# -------------------------
+# window detection
+# -------------------------
+def detect_windows(history):
+    ent = np.array([entropy(h) for h in history])
+    threshold = np.mean(ent)
+    idx = np.where(ent > threshold)[0]
+    return idx, ent
+
+# -------------------------
+# extract + stitch
+# -------------------------
+def extract_windows(history, idx, width=3):
+    windows = []
+    for i in idx:
+        s = max(0, i-width)
+        e = min(len(history), i+width)
+        windows.append(np.mean(history[s:e], axis=0))
+    return np.array(windows)
+
+def stitch_weighted(windows, ent, idx):
+    if len(windows) == 0:
+        return None
+    
+    w = ent[idx]
+    w = w / np.sum(w)
+    
+    recon = np.zeros_like(windows[0])
+    for wi, wt in zip(windows, w):
+        recon += wt * wi
+    return recon
+
+# -------------------------
+# EXPERIMENT
+# -------------------------
+N = 200
+T = 150
+lam = 1.2
+
+noise_levels = np.linspace(0.0, 0.5, 12)
+errors = []
+
+for noise_level in noise_levels:
+
+    # ground truth (no noise)
+    psi = np.random.randn(N)
+    true_history = []
+    for t in range(T):
+        psi = step(psi, lam, t, noise_level=0.0)
+        true_history.append(psi.copy())
+
+    true_signal = np.mean(true_history, axis=0)
+
+    # noisy system
+    psi = np.random.randn(N)
+    history = []
+    for t in range(T):
+        psi = step(psi, lam, t, noise_level=noise_level)
+        history.append(psi.copy())
+
+    # reconstruction
+    idx, ent = detect_windows(history)
+    windows = extract_windows(history, idx)
+    recon = stitch_weighted(windows, ent, idx)
+
+    if recon is None:
+        errors.append(1.0)
+    else:
+        err = np.linalg.norm(true_signal - recon) / np.linalg.norm(true_signal)
+        errors.append(err)
+
+# -------------------------
+# PLOT
+# -------------------------
+plt.figure()
+plt.plot(noise_levels, errors, '-o')
+plt.xlabel("Noise Level")
+plt.ylabel("Reconstruction Error")
+plt.title("Reconstruction Performance vs Noise")
+plt.savefig("reconstruction_vs_noise.png", dpi=300)
+plt.show()
