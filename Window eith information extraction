@@ -1,0 +1,19 @@
+import numpy as np
+
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+def detect_windows(history, threshold):
+    ent = np.array([entropy(h) for h in history])
+    idx = np.where(ent > threshold)[0]
+    return idx, ent
+
+def extract_windows(history, window_idx, width=5):
+    windows = []
+    for i in window_idx:
+        start = max(0, i-width)
+        end = min(len(history), i+width)
+        windows.append(np.mean(history[start:end], axis=0))
+    return np.array(windows)
