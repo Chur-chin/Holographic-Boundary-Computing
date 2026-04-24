@@ -1,0 +1,109 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# STEP
+# -------------------------
+def step(psi, lam, t, A, freq, noise):
+    left = np.roll(psi,1)
+    right = np.roll(psi,-1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    lam_eff = lam + A*np.sin(freq*t)
+    return np.tanh(lam_eff*(left+right) + noise*np.random.randn(len(psi)))
+
+# -------------------------
+# entropy
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+# -------------------------
+# window
+# -------------------------
+def detect_windows(history):
+    ent = np.array([entropy(h) for h in history])
+    idx = np.where(ent > np.mean(ent))[0]
+    return idx, ent
+
+def extract_windows(history, idx, width=3):
+    windows = []
+    for i in idx:
+        s = max(0, i-width)
+        e = min(len(history), i+width)
+        windows.append(np.mean(history[s:e], axis=0))
+    return np.array(windows)
+
+def stitch_weighted(windows, ent, idx):
+    if len(windows) == 0:
+        return None
+    w = ent[idx]
+    w = w / np.sum(w)
+    recon = np.zeros_like(windows[0])
+    for wi, wt in zip(windows, w):
+        recon += wt * wi
+    return recon
+
+# -------------------------
+# PARAMETERS
+# -------------------------
+N = 200
+T = 120
+lam = 1.2
+noise = 0.2
+
+A_vals = np.linspace(0.1, 0.6, 12)
+freq_vals = np.linspace(0.02, 0.12, 12)
+
+heatmap = np.zeros((len(A_vals), len(freq_vals)))
+
+# -------------------------
+# COMPUTE
+# -------------------------
+for i, A in enumerate(A_vals):
+    for j, freq in enumerate(freq_vals):
+
+        # ground truth
+        psi = np.random.randn(N)
+        true_hist = []
+        for t in range(T):
+            psi = step(psi, lam, t, A=0, freq=0, noise=0)
+            true_hist.append(psi.copy())
+        true_signal = np.mean(true_hist, axis=0)
+
+        # driven system
+        psi = np.random.randn(N)
+        history = []
+        for t in range(T):
+            psi = step(psi, lam, t, A, freq, noise)
+            history.append(psi.copy())
+
+        idx, ent = detect_windows(history)
+        windows = extract_windows(history, idx)
+        recon = stitch_weighted(windows, ent, idx)
+
+        if recon is None:
+            heatmap[i, j] = 1.0
+        else:
+            err = np.linalg.norm(true_signal - recon) / np.linalg.norm(true_signal)
+            heatmap[i, j] = err
+
+# -------------------------
+# PLOT
+# -------------------------
+plt.figure(figsize=(6,5))
+plt.imshow(heatmap, origin='lower',
+           extent=[freq_vals[0], freq_vals[-1], A_vals[0], A_vals[-1]],
+           aspect='auto')
+
+plt.colorbar(label="Reconstruction Error")
+plt.xlabel("Frequency (ω)")
+plt.ylabel("Amplitude (A)")
+plt.title("Performance Heatmap (A vs Frequency)")
+plt.savefig("Fig6_heatmap.png", dpi=300)
+plt.show()
