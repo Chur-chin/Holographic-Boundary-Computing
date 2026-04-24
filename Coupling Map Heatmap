@@ -1,0 +1,47 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# grid 생성
+grid_size = 80
+xg = np.linspace(0, 10, grid_size)
+yg = np.linspace(-1.5, 1.5, grid_size)
+
+X, Y = np.meshgrid(xg, yg)
+
+# serpentine 중심선과 거리 기반 coupling
+def coupling_strength(x, y, xs, ys):
+    # 최소 거리 기반 coupling
+    d = np.min((x - xs)**2 + (y - ys)**2)
+    return np.exp(-d * 5)
+
+# coupling map 생성
+coupling_map = np.zeros_like(X)
+
+for i in range(grid_size):
+    for j in range(grid_size):
+        coupling_map[i,j] = coupling_strength(
+            X[i,j], Y[i,j],
+            x, y
+        )
+
+# ---- plot ----
+plt.figure(figsize=(6,5))
+
+plt.imshow(
+    coupling_map,
+    extent=[0,10,-1.5,1.5],
+    origin='lower',
+    aspect='auto'
+)
+
+plt.colorbar(label="Coupling Strength")
+
+# serpentine overlay
+plt.plot(x, y, linewidth=1)
+
+plt.xlabel("Position x")
+plt.ylabel("Position y")
+plt.title("Spatial Coupling Map (Serpentine Waveguide)")
+
+plt.tight_layout()
+plt.show()
