@@ -1,0 +1,10 @@
+def stitch_weighted(windows, ent_vals, idx):
+    weights = ent_vals[idx]
+    weights = weights / np.sum(weights)
+    
+    recon = np.zeros_like(windows[0])
+    
+    for w, wt in zip(windows, weights):
+        recon += wt * w
+    
+    return recon
