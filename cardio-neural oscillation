@@ -1,0 +1,13 @@
+def step_with_heartbeat(psi, lam, t):
+    left = np.roll(psi,1)
+    right = np.roll(psi,-1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    heartbeat = 0.3 * np.sin(0.05 * t)  # 저주파
+
+    lam_eff = lam + heartbeat
+
+    return np.tanh(lam_eff*(left+right))
