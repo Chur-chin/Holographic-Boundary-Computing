@@ -1,0 +1,141 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# STEP
+# -------------------------
+def step(psi, lam, t, noise_level):
+    left = np.roll(psi,1)
+    right = np.roll(psi,-1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    heartbeat = 0.4*np.sin(0.05*t)
+    lam_eff = lam + heartbeat
+
+    noise = noise_level * np.random.randn(len(psi))
+
+    return np.tanh(lam_eff*(left+right) + noise)
+
+# -------------------------
+# entropy
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+# -------------------------
+# window
+# -------------------------
+def detect_windows(history):
+    ent = np.array([entropy(h) for h in history])
+    idx = np.where(ent > np.mean(ent))[0]
+    return idx, ent
+
+def extract_windows(history, idx, width=3):
+    windows = []
+    for i in idx:
+        s = max(0, i-width)
+        e = min(len(history), i+width)
+        windows.append(np.mean(history[s:e], axis=0))
+    return np.array(windows)
+
+def stitch_weighted(windows, ent, idx):
+    if len(windows) == 0:
+        return None
+    w = ent[idx]
+    w = w / np.sum(w)
+    recon = np.zeros_like(windows[0])
+    for wi, wt in zip(windows, w):
+        recon += wt * wi
+    return recon
+
+# -------------------------
+# EXPERIMENT
+# -------------------------
+N = 200
+T = 150
+lam = 1.2
+
+noise_levels = np.linspace(0.01, 0.5, 12)
+
+error_window = []
+error_baseline = []
+snr_vals = []
+
+for noise_level in noise_levels:
+
+    # ground truth
+    psi = np.random.randn(N)
+    true_hist = []
+    for t in range(T):
+        psi = step(psi, lam, t, 0.0)
+        true_hist.append(psi.copy())
+
+    true_signal = np.mean(true_hist, axis=0)
+
+    # noisy
+    psi = np.random.randn(N)
+    history = []
+    for t in range(T):
+        psi = step(psi, lam, t, noise_level)
+        history.append(psi.copy())
+
+    history = np.array(history)
+
+    # -----------------
+    # baseline (simple mean)
+    baseline = np.mean(history, axis=0)
+
+    # -----------------
+    # window method
+    idx, ent = detect_windows(history)
+    windows = extract_windows(history, idx)
+    recon = stitch_weighted(windows, ent, idx)
+
+    # -----------------
+    # errors
+    err_base = np.linalg.norm(true_signal - baseline) / np.linalg.norm(true_signal)
+    error_baseline.append(err_base)
+
+    if recon is None:
+        error_window.append(1.0)
+    else:
+        err_win = np.linalg.norm(true_signal - recon) / np.linalg.norm(true_signal)
+        error_window.append(err_win)
+
+    # -----------------
+    # SNR (간단 정의)
+    signal_power = np.mean(true_signal**2)
+    noise_power = noise_level**2
+    snr = 10*np.log10(signal_power / noise_power)
+    snr_vals.append(snr)
+
+# -------------------------
+# GRAPH 1: baseline vs window
+# -------------------------
+plt.figure()
+plt.plot(noise_levels, error_baseline, '-o', label="Baseline (Mean)")
+plt.plot(noise_levels, error_window, '-o', label="Window Reconstruction")
+plt.xlabel("Noise Level")
+plt.ylabel("Reconstruction Error")
+plt.legend()
+plt.title("Baseline vs Window Method")
+plt.savefig("compare_baseline_window.png", dpi=300)
+plt.show()
+
+# -------------------------
+# GRAPH 2: SNR vs error
+# -------------------------
+plt.figure()
+plt.plot(snr_vals, error_window, '-o', label="Window")
+plt.plot(snr_vals, error_baseline, '-o', label="Baseline")
+plt.xlabel("SNR (dB)")
+plt.ylabel("Reconstruction Error")
+plt.legend()
+plt.title("SNR vs Reconstruction Performance")
+plt.savefig("snr_vs_error.png", dpi=300)
+plt.show()
