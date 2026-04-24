@@ -1,0 +1,141 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------
+# STEP
+# -------------------------
+def step(psi, lam, t, A, freq, noise):
+    left = np.roll(psi,1)
+    right = np.roll(psi,-1)
+
+    # Möbius
+    right[-1] = -psi[0]
+    left[0] = -psi[-1]
+
+    lam_eff = lam + A*np.sin(freq*t)
+    return np.tanh(lam_eff*(left+right) + noise*np.random.randn(len(psi)))
+
+# -------------------------
+# Lyapunov (간단 안정 버전)
+# -------------------------
+def lyapunov(step_func, A, freq, lam=1.2, N=150, T=80):
+    psi = np.random.randn(N)
+    psi2 = psi + 1e-8*np.random.randn(N)
+
+    d0 = np.linalg.norm(psi - psi2)
+    lyap = 0
+
+    for t in range(T):
+        psi = step_func(psi, lam, t, A, freq, 0.0)
+        psi2 = step_func(psi2, lam, t, A, freq, 0.0)
+
+        d = np.linalg.norm(psi - psi2)
+        if d == 0:
+            continue
+
+        lyap += np.log(d/d0)
+        psi2 = psi + (psi2-psi)*(1e-8/d)
+
+    return lyap / T
+
+# -------------------------
+# entropy / window
+# -------------------------
+def entropy(signal):
+    hist, _ = np.histogram(signal, bins=40, density=True)
+    hist = hist[hist > 0]
+    return -np.sum(hist*np.log(hist))
+
+def detect_windows(history):
+    ent = np.array([entropy(h) for h in history])
+    idx = np.where(ent > np.mean(ent))[0]
+    return idx, ent
+
+def extract_windows(history, idx, width=3):
+    windows = []
+    for i in idx:
+        s = max(0, i-width)
+        e = min(len(history), i+width)
+        windows.append(np.mean(history[s:e], axis=0))
+    return np.array(windows)
+
+def stitch_weighted(windows, ent, idx):
+    if len(windows) == 0:
+        return None
+    w = ent[idx]
+    w = w / np.sum(w)
+    recon = np.zeros_like(windows[0])
+    for wi, wt in zip(windows, w):
+        recon += wt * wi
+    return recon
+
+# -------------------------
+# PARAMETERS
+# -------------------------
+N = 200
+T = 120
+lam = 1.2
+noise = 0.2
+
+A_vals = np.linspace(0.1, 0.6, 10)
+freq_vals = np.linspace(0.02, 0.12, 10)
+
+heatmap = np.zeros((len(A_vals), len(freq_vals)))
+lyap_map = np.zeros_like(heatmap)
+
+# -------------------------
+# COMPUTE
+# -------------------------
+for i, A in enumerate(A_vals):
+    for j, freq in enumerate(freq_vals):
+
+        # ground truth
+        psi = np.random.randn(N)
+        true_hist = []
+        for t in range(T):
+            psi = step(psi, lam, t, 0, 0, 0)
+            true_hist.append(psi.copy())
+        true_signal = np.mean(true_hist, axis=0)
+
+        # driven
+        psi = np.random.randn(N)
+        history = []
+        for t in range(T):
+            psi = step(psi, lam, t, A, freq, noise)
+            history.append(psi.copy())
+
+        idx, ent = detect_windows(history)
+        windows = extract_windows(history, idx)
+        recon = stitch_weighted(windows, ent, idx)
+
+        if recon is None:
+            heatmap[i,j] = 1.0
+        else:
+            err = np.linalg.norm(true_signal - recon) / np.linalg.norm(true_signal)
+            heatmap[i,j] = err
+
+        # Lyapunov
+        lyap_map[i,j] = lyapunov(step, A, freq)
+
+# -------------------------
+# PLOT
+# -------------------------
+plt.figure(figsize=(6,5))
+
+# heatmap
+plt.imshow(heatmap, origin='lower',
+           extent=[freq_vals[0], freq_vals[-1], A_vals[0], A_vals[-1]],
+           aspect='auto')
+
+plt.colorbar(label="Reconstruction Error")
+
+# contour (Lyapunov)
+X, Y = np.meshgrid(freq_vals, A_vals)
+cs = plt.contour(X, Y, lyap_map, levels=[0], colors='white', linewidths=2)
+plt.clabel(cs, fmt="Lyap=0", colors='white')
+
+plt.xlabel("Frequency (ω)")
+plt.ylabel("Amplitude (A)")
+plt.title("Performance + Lyapunov Overlay")
+plt.savefig("Fig7_heatmap_lyapunov.png", dpi=300)
+plt.show()
