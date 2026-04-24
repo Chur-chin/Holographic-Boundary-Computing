@@ -1,0 +1,21 @@
+num_joints = 12  # 팔 + 다리 + 몸통
+
+phases = np.linspace(0, 2*np.pi, num_joints)
+
+def full_body_wave(t, phases):
+    signals = []
+    for p in phases:
+        signals.append(2 + np.sin(t + p))
+    return np.array(signals)
+
+signals = full_body_wave(t, phases)
+
+# 시각화
+plt.figure(figsize=(7,4))
+for i in range(num_joints):
+    plt.plot(t, signals[i])
+
+plt.title("Full-body Wave Coordination")
+plt.xlabel("Time")
+plt.ylabel("Activation")
+plt.show()
