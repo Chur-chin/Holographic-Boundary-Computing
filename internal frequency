@@ -1,0 +1,14 @@
+psi = np.random.randn(N)
+signal = []
+
+for t in range(200):
+    psi = step(psi, 1.2, t, heartbeat=False)
+    signal.append(np.mean(psi))
+
+fft = np.abs(np.fft.fft(signal))
+freq = np.fft.fftfreq(len(signal))
+
+plt.plot(freq[:50], fft[:50])
+plt.title("Internal Frequency Spectrum")
+plt.savefig("Fig_resonance.png", dpi=300)
+plt.show()
