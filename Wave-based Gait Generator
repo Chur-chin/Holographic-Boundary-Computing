@@ -1,0 +1,34 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+T = 400
+t = np.linspace(0, 20, T)
+
+# 4개 관절 (좌/우 hip, knee)
+# 위상차로 보행 생성
+phase_offsets = [0, np.pi, np.pi/2, 3*np.pi/2]
+
+def wave_joint(t, phase):
+    return 2 + np.sin(t + phase)
+
+signals = [wave_joint(t, p) for p in phase_offsets]
+
+# joint angle 변환
+def to_angle(I):
+    return (np.clip(I,0,4)/4)*60  # 보행은 작은 각도
+
+angles = [to_angle(s) for s in signals]
+
+# ---- plot ----
+plt.figure(figsize=(7,4))
+labels = ["L-Hip","R-Hip","L-Knee","R-Knee"]
+
+for i in range(4):
+    plt.plot(t, angles[i], label=labels[i])
+
+plt.title("Wave-based Locomotion (CPG-like Phase Coordination)")
+plt.xlabel("Time")
+plt.ylabel("Joint Angle")
+plt.legend()
+plt.grid(True)
+plt.show()
