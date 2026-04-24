@@ -1,0 +1,149 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(2)
+
+# ----------------------------
+# 1) Boundary → joint mapping
+# ----------------------------
+def boundary_to_joint(I):
+    I = np.clip(I, 0, 4)
+    return (I / 4.0) * 180  # deg
+
+# ----------------------------
+# 2) Baseline wave (3 channels)
+# ----------------------------
+T = 300
+t = np.linspace(0, 20, T)
+
+I_sh = 2 + 0.8*np.sin(t)
+I_el = 2 + 0.8*np.sin(t + np.pi/4)
+I_wr = 2 + 0.8*np.sin(t + np.pi/2)
+
+# experimental-like noise
+def add_noise(x, s=0.15):
+    return x + s*np.random.randn(len(x))
+
+I_sh = add_noise(I_sh)
+I_el = add_noise(I_el)
+I_wr = add_noise(I_wr)
+
+# ----------------------------
+# 3) Reflex loop parameters
+# ----------------------------
+# target posture (home position)
+target = np.array([90.0, 90.0, 90.0])  # deg
+
+# feedback gain (spinal reflex strength)
+Kp = np.array([0.02, 0.025, 0.02])
+
+# delay (sensory → spinal → motor)
+delay = 3  # time steps
+
+# buffers for delayed sensing
+buf_err = [np.zeros(3) for _ in range(delay+1)]
+
+# storage
+theta_sh = np.zeros(T)
+theta_el = np.zeros(T)
+theta_wr = np.zeros(T)
+
+# initial
+theta_prev = target.copy()
+
+# ----------------------------
+# 4) Closed-loop simulation
+# ----------------------------
+for k in range(T):
+    # forward (wave → boundary → joint)
+    I_vec = np.array([I_sh[k], I_el[k], I_wr[k]])
+    theta_ff = boundary_to_joint(I_vec)  # feedforward
+
+    # sensing (proprioception with noise)
+    sense = theta_prev + 2.0*np.random.randn(3)
+
+    # error to target
+    err = target - sense
+
+    # push into delay buffer
+    buf_err.append(err)
+    err_delayed = buf_err.pop(0)
+
+    # reflex correction (P-control)
+    delta = Kp * err_delayed
+
+    # combine feedforward + reflex
+    theta = theta_ff + delta
+
+    # clamp (biological limits)
+    theta = np.clip(theta, 0, 180)
+
+    # store
+    theta_sh[k], theta_el[k], theta_wr[k] = theta
+    theta_prev = theta
+
+# ----------------------------
+# 5) Plot A: boundary signals
+# ----------------------------
+plt.figure(figsize=(6,4))
+plt.plot(t, I_sh, label="Shoulder (Boundary)")
+plt.plot(t, I_el, label="Elbow (Boundary)")
+plt.plot(t, I_wr, label="Wrist (Boundary)")
+plt.xlabel("Time")
+plt.ylabel("Boundary Intensity")
+plt.title("Boundary Signals (Wave Output)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 6) Plot B: closed-loop joints
+# ----------------------------
+plt.figure(figsize=(6,4))
+plt.plot(t, theta_sh, label="Shoulder")
+plt.plot(t, theta_el, label="Elbow")
+plt.plot(t, theta_wr, label="Wrist")
+plt.axhline(target[0], linestyle='--')
+plt.xlabel("Time")
+plt.ylabel("Joint Angle (deg)")
+plt.title("Closed-loop Control with Reflex Feedback")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 7) Plot C: stability (error norm)
+# ----------------------------
+err_norm = np.sqrt((theta_sh-target[0])**2 +
+                   (theta_el-target[1])**2 +
+                   (theta_wr-target[2])**2)
+
+plt.figure(figsize=(6,4))
+plt.plot(t, err_norm)
+plt.xlabel("Time")
+plt.ylabel("Error Norm")
+plt.title("Reflex Stabilization (Error Decay)")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ----------------------------
+# 8) Snapshot arm
+# ----------------------------
+def plot_arm(theta1, theta2, theta3):
+    L1, L2, L3 = 1, 1, 0.7
+    t1, t2, t3 = np.deg2rad(theta1), np.deg2rad(theta2), np.deg2rad(theta3)
+    x1, y1 = L1*np.cos(t1), L1*np.sin(t1)
+    x2, y2 = x1 + L2*np.cos(t1+t2), y1 + L2*np.sin(t1+t2)
+    x3, y3 = x2 + L3*np.cos(t1+t2+t3), y2 + L3*np.sin(t1+t2+t3)
+    plt.plot([0,x1,x2,x3],[0,y1,y2,y3], marker='o')
+    plt.xlim(-3,3); plt.ylim(-3,3); plt.gca().set_aspect('equal')
+
+idx = 200
+plt.figure(figsize=(4,4))
+plot_arm(theta_sh[idx], theta_el[idx], theta_wr[idx])
+plt.title("Reflex-Controlled Arm Snapshot")
+plt.grid(True)
+plt.show()
